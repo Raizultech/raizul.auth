@@ -2,18 +2,17 @@ name: Build and Push to ECR for App Runner
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 env:
   AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: 640168417024
   ECR_REPOSITORY: oauth
   IMAGE_TAG: latest
 
 jobs:
   build-and-push:
-    name: Build and Push to ECR
-    runs-on: main
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
