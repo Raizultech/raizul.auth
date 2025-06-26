@@ -65,9 +65,33 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
+    
+# Esquema de entrada para registro
+class RegisterUser(BaseModel):
+    username: str
+    password: str
+    
 # Aplicación
 app = FastAPI()
+
+# Endpoint de registro
+@app.post("/register", status_code=201)
+def register_user(user_data: RegisterUser, db: Session = Depends(get_db)):
+    # Verificar si el usuario ya existe
+    existing_user = get_user_by_username(db, user_data.username)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="El usuario ya existe")
+
+    # Hashear la contraseña
+    hashed_password = pwd_context.hash(user_data.password)
+
+    # Crear el nuevo usuario
+    new_user = User(username=user_data.username, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {"mensaje": f"Usuario '{new_user.username}' creado exitosamente"}
 
 # Endpoint de login
 @app.post("/login")
