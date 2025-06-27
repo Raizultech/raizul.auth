@@ -87,7 +87,7 @@ def register_user(user_data: RegisterUser, db: Session = Depends(get_db)):
     hashed_password = pwd_context.hash(user_data.password)
 
     # Crear el nuevo usuario
-    new_user = User(username=user_data.username, hashed_password=hashed_password)
+    new_user = User(username=user_data.username, password=hashed_password)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
