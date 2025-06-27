@@ -9,6 +9,8 @@ python-dotenv==1.1.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.20
 python-jose==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.0
 
 # Base de datos (SQLAlchemy + PostgreSQL)
 SQLAlchemy==2.0.30
