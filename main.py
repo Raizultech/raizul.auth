@@ -35,7 +35,7 @@ class User(Base):
     tenant_id = Column(pgUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
-    rol_id = Column(String, ForeignKey("roles.id"), nullable=False)
+    rol_id = Column(pgUUID(as_uuid=True), ForeignKey("roles.id"), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
