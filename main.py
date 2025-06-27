@@ -27,21 +27,18 @@ engine = create_engine(db_url)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
-# Modelo de usuario
+# Modelo de usuario (sin crear la tabla)
 class User(Base):
     __tablename__ = "users"
 
     id = Column(pgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    tenant_id = Column(pgUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    tenant_id = Column(pgUUID(as_uuid=True), ForeignKey("public.tenants.id"), nullable=False)  # <- schema explícito
     username = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
-    rol_id = Column(pgUUID(as_uuid=True), ForeignKey("roles.id"), nullable=False)
+    rol_id = Column(pgUUID(as_uuid=True), ForeignKey("public.roles.id"), nullable=False)       # <- schema explícito
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-# Crear tablas
-Base.metadata.create_all(bind=engine)
 
 # Seguridad
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
