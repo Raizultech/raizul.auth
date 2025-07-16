@@ -1,17 +1,23 @@
-# FastAPI y servidor ASGI
-fastapi==0.115.12
-uvicorn[standard]==0.34.2
-pydantic==2.11.3
-pydantic_core==2.33.1
+# --- Framework Web ---
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
 
-# Seguridad y autenticación
-python-dotenv==1.1.0
-passlib[bcrypt]==1.7.4
-python-multipart==0.0.20
-python-jose==3.3.0
-passlib[bcrypt]==1.7.4
-bcrypt==3.2.0
+# --- Cliente HTTP Asíncrono ---
+httpx==0.27.0
 
-# Base de datos (SQLAlchemy + PostgreSQL)
-SQLAlchemy==2.0.30
-psycopg2-binary==2.9.10
+# --- Validación de Datos ---
+pydantic==2.7.1
+
+# --- Gestión de Entorno ---
+python-dotenv==1.0.1
+
+# --- Seguridad y Autenticación ---
+# python-jose se usa para crear, firmar y decodificar los tokens JWT.
+python-jose[cryptography]==3.3.0
+
+# passlib se usa para el hashing seguro de contraseñas.
+passlib[bcrypt]==1.7.4
+
+# python-multipart es requerido por FastAPI para manejar datos de formularios,
+# que es como OAuth2PasswordBearer recibe las credenciales.
+python-multipart==0.0.9

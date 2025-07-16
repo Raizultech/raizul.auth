@@ -1,134 +1,141 @@
 import os
 import uuid
-from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException
+import httpx
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from pydantic import BaseModel
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, create_engine
-from sqlalchemy.dialects.postgresql import UUID as pgUUID
-from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-# Cargar variables del entorno
+# --- Cargar variables del entorno ---
 load_dotenv()
 
-# Configuración
-db_url = os.getenv("DATABASE_URL")
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+# --- Configuración del Gateway --
+HIDDEN_API_URL = os.getenv("HIDDEN_API_URL")
+if not HIDDEN_API_URL:
+    raise ValueError("La variable de entorno HIDDEN_API_URL no está configurada.")
 
-# Base de datos
-engine = create_engine(db_url)
-SessionLocal = sessionmaker(bind=engine)
-Base = declarative_base()
-
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(pgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    tenant_id = Column(pgUUID(as_uuid=True), nullable=False)  # ⛔ sin ForeignKey
-    username = Column(String, unique=True, index=True, nullable=False)
-    password = Column(String, nullable=False)
-    rol_id = Column(pgUUID(as_uuid=True), nullable=False)     # ⛔ sin ForeignKey
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-
-# Seguridad
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# --- Seguridad ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
-# Esquemas Pydantic
+# --- Esquemas Pydantic (DTOs) ---
+# Estos esquemas no cambian, ya que definen la interfaz con el cliente final.
 class RegisterUser(BaseModel):
     username: str
-    password: str
-    tenant_id: str
-    rol_id: str
+    password: str = Field(..., min_length=8, description="La contraseña debe tener al menos 8 caracteres.")
+    tenant_id: uuid.UUID
+    role_id: uuid.UUID
+    is_active: bool = True
 
 class LoginUser(BaseModel):
     username: str
     password: str
 
-# Funciones auxiliares
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# --- Dependencia de Seguridad (Refactorizada) ---
+async def get_current_user_from_hidden_api(request: Request) -> dict:
+    """
+    Esta dependencia protege los endpoints. En lugar de consultar una base de datos local,
+    propaga el token a la API oculta para su validación.
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    Si el token es válido, la API oculta devuelve los datos del usuario.
+    Si no, devuelve un error 401, que nosotros propagamos.
+    """
+    # Extraemos el header de autorización completo de la petición original.
+    authorization: str = request.headers.get("Authorization")
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No se proporcionó token de autorización.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Preparamos los headers para la llamada a la API oculta.
+    headers = {"Authorization": authorization}
 
-def get_user_by_username(db: Session, username: str):
-    return db.query(User).filter(User.username == username).first()
+    async with httpx.AsyncClient() as client:
+        try:
+            # Hacemos la llamada al endpoint /me de la API oculta.
+            response = await client.get(f"{HIDDEN_API_URL}/me", headers=headers)
+            
+            # Si la API oculta dice que el token no es válido (ej. 401),
+            # nosotros también devolvemos un 401.
+            response.raise_for_status()
+            
+            # Si todo está bien, devolvemos los datos del usuario en formato JSON (dict).
+            return response.json()
 
-def authenticate_user(db: Session, username: str, password: str):
-    user = get_user_by_username(db, username)
-    if not user or not verify_password(password, user.password):
-        return None
-    return user
+        except httpx.HTTPStatusError as e:
+            # Propagamos el código de estado y el detalle del error desde la API oculta.
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=e.response.json().get("detail", "Error de autenticación"),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        except httpx.RequestError:
+            # Error si no se puede conectar con la API oculta.
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="El servicio de autenticación interno no está disponible.",
+            )
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+# --- Aplicación FastAPI ---
+app = FastAPI(title="Gateway de Autenticación")
 
-# Aplicación FastAPI
-app = FastAPI()
+@app.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def register_user(user_data: RegisterUser):
+    """
+    Recibe los datos de registro y los reenvía a la API oculta.
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{HIDDEN_API_URL}/register",
+                json=user_data.dict(by_alias=True) # Usamos .dict() para serializar los UUIDs
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=e.response.json().get("detail", "Error en el registro"),
+            )
+        except httpx.RequestError:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="El servicio de registro interno no está disponible.",
+            )
 
-@app.post("/register", status_code=201)
-def register_user(user_data: RegisterUser, db: Session = Depends(get_db)):
-    existing_user = get_user_by_username(db, user_data.username)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="El usuario ya existe")
+@app.post("/login", response_model=dict)
+async def login(user_data: LoginUser):
+    """
+    Recibe las credenciales, las reenvía a la API oculta para autenticar
+    y devuelve el token JWT generado por el servicio oculto.
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{HIDDEN_API_URL}/login",
+                json=user_data.dict()
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=e.response.json().get("detail", "Credenciales incorrectas"),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        except httpx.RequestError:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="El servicio de login interno no está disponible.",
+            )
 
-    hashed_password = pwd_context.hash(user_data.password)
-    new_user = User(
-        username=user_data.username,
-        password=hashed_password,
-        tenant_id=user_data.tenant_id,
-        rol_id=user_data.rol_id,
-        is_active=True,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return {"mensaje": f"Usuario '{new_user.username}' creado exitosamente"}
-
-@app.post("/login")
-def login(user_data: LoginUser, db: Session = Depends(get_db)):
-    user = authenticate_user(db, user_data.username, user_data.password)
-    if not user:
-        raise HTTPException(status_code=400, detail="Credenciales incorrectas")
-
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@app.get("/protegido")
-def protected_route(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise HTTPException(status_code=401, detail="Token inválido")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Token inválido")
-
-    user = get_user_by_username(db, username)
-    if user is None:
-        raise HTTPException(status_code=401, detail="Usuario no encontrado")
-
-    return {"mensaje": f"Bienvenido, {user.username}"}
+@app.get("/me", response_model=dict)
+def read_users_me(current_user: dict = Depends(get_current_user_from_hidden_api)):
+    """
+    Endpoint protegido que devuelve la información del usuario actual.
+    La dependencia 'get_current_user_from_hidden_api' hace todo el trabajo de validación.
+    """
+    return current_user
