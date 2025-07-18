@@ -88,8 +88,8 @@ async def register_user(user_data: RegisterUser):
     """Recibe los datos de registro y los reenvía a la API oculta."""
     async with httpx.AsyncClient() as client:
         try:
-            # El endpoint de registro en la API oculta podría ser /users/
-            response = await client.post(f"{HIDDEN_API_URL}api/v1/users/", json=user_data.model_dump(mode='json'))
+            # CORREGIDO: Se añadió una '/' entre la URL base y la ruta.
+            response = await client.post(f"{HIDDEN_API_URL}/api/v1/users/", json=user_data.model_dump(mode='json'))
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -102,7 +102,8 @@ async def login(user_data: LoginUser):
     """Recibe las credenciales, las reenvía a la API oculta y devuelve el token JWT."""
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(f"{HIDDEN_API_URL}api/v1/auth/login", json=user_data.model_dump())
+            # CORREGIDO: Se añadió una '/' entre la URL base y la ruta.
+            response = await client.post(f"{HIDDEN_API_URL}/api/v1/auth/login", json=user_data.model_dump())
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -123,3 +124,4 @@ app = FastAPI(title="Gateway de Autenticación")
 
 # Incluimos el router de autenticación en la aplicación principal
 app.include_router(auth_router)
+
