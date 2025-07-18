@@ -89,7 +89,7 @@ async def register_user(user_data: RegisterUser):
     async with httpx.AsyncClient() as client:
         try:
             # El endpoint de registro en la API oculta podría ser /users/
-            response = await client.post(f"{HIDDEN_API_URL}/auth/register", json=user_data.model_dump(mode='json'))
+            response = await client.post(f"{HIDDEN_API_URL}api/v1/auth/register", json=user_data.model_dump(mode='json'))
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
