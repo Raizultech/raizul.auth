@@ -83,21 +83,6 @@ async def get_current_user_from_hidden_api(request: Request) -> dict:
 # --- Router de Autenticación ---
 auth_router = APIRouter(prefix="/auth", tags=["authentication"])
 
-@auth_router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def register_user(user_data: RegisterUser):
-    """Recibe los datos de registro y los reenvía a la API oculta."""
-    async with httpx.AsyncClient() as client:
-        try:
-            # CORREGIDO: Se añadió una '/' entre la URL base y la ruta.
-            print(f"{HIDDEN_API_URL}")
-            response = await client.post(f"{HIDDEN_API_URL}/api/v1/users/", json=user_data.model_dump(mode='json'))
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail=e.response.json().get("detail", "Error en el registro"))
-        except httpx.RequestError:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="El servicio de registro interno no está disponible.")
-
 @auth_router.post("/login", response_model=dict)
 async def login(user_data: LoginUser):
     """Recibe las credenciales, las reenvía a la API oculta y devuelve el token JWT."""
@@ -113,7 +98,7 @@ async def login(user_data: LoginUser):
         except httpx.HTTPStatusError as e:
             raise HTTPException(status_code=e.response.status_code, detail=e.response.json().get("detail", "Credenciales incorrectas"), headers={"WWW-Authenticate": "Bearer"})
         except httpx.RequestError:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=json(response_body))
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=json.dumps(response_body))
 
 @auth_router.get("/me", response_model=UserResponse)
 def read_users_me(current_user: dict = Depends(get_current_user_from_hidden_api)):
