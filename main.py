@@ -88,7 +88,7 @@ async def login(user_data: LoginUser):
     """Recibe las credenciales, las reenvía a la API oculta y devuelve el token JWT."""
     async with httpx.AsyncClient() as client:
         try:
-           response_body = {
+            response_body = {
                 'message': 'API URL recuperada con éxito',
                 'api_url': HIDDEN_API_URL
             }
