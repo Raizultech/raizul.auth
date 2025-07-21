@@ -22,7 +22,7 @@ if not HIDDEN_API_URL:
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 # --- Configuracion de CORS ---
-app.add_middleware(
+main.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
