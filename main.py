@@ -66,7 +66,7 @@ async def get_current_user_from_hidden_api(request: Request) -> dict:
     async with httpx.AsyncClient() as client:
         try:
             # Hacemos la llamada al endpoint /auth/me de la API oculta para validar el token.
-            response = await client.get(f"{HIDDEN_API_URL}/auth/me", headers=headers)
+            response = await client.get(f"{HIDDEN_API_URL}/auth/login", headers=headers)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -103,7 +103,7 @@ async def login(user_data: LoginUser):
         except httpx.HTTPStatusError as e:
             raise HTTPException(status_code=e.response.status_code, detail=e.response.json().get("detail", "Credenciales incorrectas"), headers={"WWW-Authenticate": "Bearer"})
         except httpx.RequestError:
-            raise HTTPException(status_code=status.HTTP_500_SERVICE_UNAVAILABLE, detail=json.dumps(response_body))
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=json.dumps(response_body))
 
 @auth_router.get("/me", response_model=UserResponse)
 def read_users_me(current_user: dict = Depends(get_current_user_from_hidden_api)):
