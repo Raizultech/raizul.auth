@@ -89,6 +89,7 @@ async def register_user(user_data: RegisterUser):
     async with httpx.AsyncClient() as client:
         try:
             # CORREGIDO: Se añadió una '/' entre la URL base y la ruta.
+            print(f"{HIDDEN_API_URL}")
             response = await client.post(f"{HIDDEN_API_URL}/api/v1/users/", json=user_data.model_dump(mode='json'))
             response.raise_for_status()
             return response.json()
