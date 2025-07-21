@@ -103,14 +103,17 @@ async def login(user_data: LoginUser):
     """Recibe las credenciales, las reenvía a la API oculta y devuelve el token JWT."""
     async with httpx.AsyncClient() as client:
         try:
-            # CORREGIDO: Se añadió una '/' entre la URL base y la ruta.
+           response_body = {
+                'message': 'API URL recuperada con éxito',
+                'api_url': HIDDEN_API_URL
+            }
             response = await client.post(f"{HIDDEN_API_URL}/api/v1/auth/login", json=user_data.model_dump())
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
             raise HTTPException(status_code=e.response.status_code, detail=e.response.json().get("detail", "Credenciales incorrectas"), headers={"WWW-Authenticate": "Bearer"})
         except httpx.RequestError:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="El servicio de login interno no está disponible.")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=json(response_body))
 
 @auth_router.get("/me", response_model=UserResponse)
 def read_users_me(current_user: dict = Depends(get_current_user_from_hidden_api)):
