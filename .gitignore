@@ -192,3 +192,8 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Editores de código
+#  Ignore editor-specific files that are not relevant to the project.
+.vscode/
+.idea/

@@ -14,6 +14,7 @@ load_dotenv()
 # --- Configuración del Gateway ---
 # La URL de tu API oculta que maneja toda la lógica de negocio y base de datos.
 HIDDEN_API_URL = os.getenv("HIDDEN_API_URL")
+print(f"URL de la API oculta: {HIDDEN_API_URL}")
 if not HIDDEN_API_URL:
     raise ValueError("La variable de entorno HIDDEN_API_URL no está configurada.")
 
@@ -88,11 +89,15 @@ async def login(user_data: LoginUser):
     """Recibe las credenciales, las reenvía a la API oculta y devuelve el token JWT."""
     async with httpx.AsyncClient() as client:
         try:
+            print(f"Intentando iniciar sesión con usuario: {user_data.username}")
+            print(f"URL de la API oculta: {HIDDEN_API_URL}")
             response_body = {
                 'message': 'API URL recuperada con éxito',
                 'api_url': HIDDEN_API_URL
             }
+            print(f"Enviando solicitud de inicio de sesión a: {HIDDEN_API_URL}/api/v1/auth/login")
             response = await client.post(f"{HIDDEN_API_URL}/api/v1/auth/login", json=user_data.model_dump())
+            print(f"Respuesta de la API oculta: {response.status_code} - {response.text}")
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
