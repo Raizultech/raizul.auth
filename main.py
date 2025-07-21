@@ -5,7 +5,7 @@ from typing import Optional
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, status, Request, APIRouter
 from fastapi.security import OAuth2PasswordBearer
-from fastapi.middleware import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
