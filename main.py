@@ -21,15 +21,6 @@ if not HIDDEN_API_URL:
 # --- Seguridad ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-# --- Configuracion de CORS ---
-main.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # --- Esquemas Pydantic (DTOs) ---
 # Definen la interfaz con el cliente final.
 
@@ -115,4 +106,13 @@ app = FastAPI(title="Gateway de Autenticación")
 
 # Incluimos el router de autenticación en la aplicación principal
 app.include_router(auth_router)
+
+# --- Configuracion de CORS ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
