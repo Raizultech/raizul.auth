@@ -7,7 +7,7 @@ on:
 env:
   AWS_REGION: us-east-1
   AWS_ACCOUNT_ID: 640168417024
-  ECR_REPOSITORY: producer
+  ECR_REPOSITORY: oauth
   IMAGE_TAG: latest
 
 jobs:
