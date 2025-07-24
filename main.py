@@ -83,7 +83,7 @@ async def get_current_user_from_hidden_api(request: Request) -> dict:
 # --- Router de Autenticación ---
 auth_router = APIRouter(prefix="/auth", tags=["authentication"])
 
-@router.post("/login", response_model=dict)
+@auth_router.post("/login", response_model=dict)
 async def login_for_access_token(request: Request, db: Session = Depends(get_db)):
     """
     Acepta credenciales en formato JSON o Form-Data para generar un token de acceso.
