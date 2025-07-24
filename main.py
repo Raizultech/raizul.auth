@@ -83,22 +83,39 @@ async def get_current_user_from_hidden_api(request: Request) -> dict:
 # --- Router de Autenticación ---
 auth_router = APIRouter(prefix="/auth", tags=["authentication"])
 
-@auth_router.post("/login", response_model=dict)
-async def login(user_data: LoginUser):
-    """Recibe las credenciales, las reenvía a la API oculta y devuelve el token JWT."""
-    async with httpx.AsyncClient() as client:
-        try:
-            response_body = {
-                'message': 'API URL recuperada con éxito',
-                'api_url': HIDDEN_API_URL
-            }
-            response = await client.post(f"{HIDDEN_API_URL}/api/v1/auth/login", json=user_data.model_dump())
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail=e.response.json().get("detail", "Credenciales incorrectas"), headers={"WWW-Authenticate": "Bearer"})
-        except httpx.RequestError:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="El servicio de login interno no está disponible.")
+@router.post("/login", response_model=dict)
+async def login_for_access_token(request: Request, db: Session = Depends(get_db)):
+    """
+    Acepta credenciales en formato JSON o Form-Data para generar un token de acceso.
+    """
+    content_type = request.headers.get('content-type')
+    
+    if 'application/json' in content_type:
+        json_body = await request.json()
+        user_data = LoginUser.model_validate(json_body)
+        username = user_data.username
+        password = user_data.password
+    elif 'application/x-www-form-urlencoded' in content_type:
+        form_data = await request.form()
+        username = form_data.get('username')
+        password = form_data.get('password')
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Content-Type no soportado. Usar 'application/json' o 'application/x-www-form-urlencoded'."
+        )
+
+    user = user_crud.authenticate(db, username=username, password=password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales incorrectas o usuario inactivo"
+        )
+    
+    token_data = {"sub": str(user.id), "tenant_id": str(user.tenant_id), "role_id": str(user.role_id)}
+    access_token = create_access_token(data=token_data)
+    
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 # --- Aplicación FastAPI Principal ---
