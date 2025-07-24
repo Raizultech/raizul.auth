@@ -73,7 +73,3 @@ if allowed_origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    allow_headers=["*"],
-)
-
