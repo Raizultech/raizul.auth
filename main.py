@@ -51,7 +51,7 @@ async def login(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="Content-Type no soportado. Usar 'application/json' o 'application/x-www-form-urlencoded'."
         )
-    login_data = {"username": form_data.username, "password": form_data.password}
+    login_data = {"username": username, "password": password}
     async with httpx.AsyncClient() as client:
         try:
             # Se reenvían las credenciales a la API oculta.
