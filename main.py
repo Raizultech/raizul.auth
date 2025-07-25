@@ -32,13 +32,26 @@ auth_router = APIRouter(prefix="/auth", tags=["authentication"])
 
 @auth_router.post("/login", response_model=dict)
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends()
+    request: Request
 ):
     
-    # Se crea un diccionario a partir de los datos del formulario.
-    # Este formato es compatible para ser enviado como JSON a la API oculta.
-    login_data = {"username": form_data.username, "password": form_data.password}
+    content_type = request.headers.get('content-type')
     
+    if 'application/json' in content_type:
+        json_body = await request.json()
+        user_data = LoginUser.model_validate(json_body)
+        username = user_data.username
+        password = user_data.password
+    elif 'application/x-www-form-urlencoded' in content_type:
+        form_data = await request.form()
+        username = form_data.get('username')
+        password = form_data.get('password')
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Content-Type no soportado. Usar 'application/json' o 'application/x-www-form-urlencoded'."
+        )
+    login_data = {"username": form_data.username, "password": form_data.password}
     async with httpx.AsyncClient() as client:
         try:
             # Se reenvían las credenciales a la API oculta.
