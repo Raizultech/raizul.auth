@@ -77,7 +77,7 @@ jobs:
 
     - name: Update App Runner (Production) with new image
       env:
-        IMAGE_IDENTIFIER: "$ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA"
+        IMAGE_IDENTIFIER: $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA
       run: |
         echo "Aprobación recibida. Desplegando la imagen: $IMAGE_IDENTIFIER"
 
