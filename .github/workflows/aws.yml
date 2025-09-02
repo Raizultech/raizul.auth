@@ -6,27 +6,29 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Job 1: Construye, sube la imagen y despliega automáticamente a Stage
+  # Job 1: Construye, sube la imagen y despliega a Stage
   build-and-deploy-stage:
     name: Build, Push & Deploy to Stage
     runs-on: ubuntu-latest
     environment:
-      name: dev # Asocia este job al entorno de desarrollo
+      name: dev
+    # --- CAMBIO 1: Nombre del output simplificado ---
     outputs:
-      image_identifier_sha: ${{ steps.build-image.outputs.image_sha }}
+      image_sha: ${{ steps.build-image.outputs.image_sha_output }}
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
+      # ... (sin cambios aquí) ...
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ vars.AWS_REGION }}
 
     - name: Login to Amazon ECR
+      # ... (sin cambios aquí) ...
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
@@ -35,57 +37,61 @@ jobs:
       run: |
         ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        FULL_IMAGE_NAME="$ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA"
         
-        docker build -t $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA .
-        docker build -t $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest .
+        docker build -t $FULL_IMAGE_NAME .
+        docker tag $FULL_IMAGE_NAME $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest
         
-        docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA
+        docker push $FULL_IMAGE_NAME
         docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest
         
-        echo "image_sha=$ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA" >> $GITHUB_OUTPUT
+        # --- CAMBIO 2: Usar un nombre de output de paso diferente para claridad ---
+        echo "image_sha_output=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
 
     - name: Update App Runner (Stage) with new image
+      # ... (sin cambios aquí, sigue usando el output del paso) ...
       run: |
-        echo "Actualizando App Runner Stage..."
         aws apprunner update-service \
           --service-arn ${{ secrets.APP_RUNNER_SERVICE_ARN_STG }} \
           --source-configuration '{
             "ImageRepository": {
-              "ImageIdentifier": "${{ steps.build-image.outputs.image_sha }}",
+              "ImageIdentifier": "${{ steps.build-image.outputs.image_sha_output }}",
               "ImageRepositoryType": "ECR"
             }
           }'
 
-  # Job 2: Despliega a Producción, pero ESPERA APROBACIÓN
+    # --- CAMBIO 3: Paso de verificación añadido ---
+    - name: Verify Job Output
+      run: |
+        echo "Verificación: El output 'image_sha' se ha establecido como: ${{ steps.build-image.outputs.image_sha_output }}"
+
+  # Job 2: Despliega a Producción
   deploy-prod:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [build-and-deploy-stage] # Depende de que el job de Stage termine
-
-    # --- AQUÍ ESTÁ LA MAGIA ---
-    # Al apuntar a este entorno, el workflow se pausará
-    # hasta que un revisor autorizado lo apruebe.
+    needs: [build-and-deploy-stage]
     environment:
       name: production 
 
     steps:
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
+      # ... (sin cambios aquí) ...
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ vars.AWS_REGION }}
-    - name: Debug Output Value
-      run: |
-        echo "El valor recibido es: ${{ needs.build-and-deploy-stage.outputs.image_identifier_sha }}"
+
     - name: Update App Runner (Production) with new image
       run: |
-        echo "Aprobación recibida. Actualizando App Runner Producción..."
+        # --- CAMBIO 4: Usar el nombre de output simplificado ---
+        IMAGE_IDENTIFIER="${{ needs.build-and-deploy-stage.outputs.image_sha }}"
+        echo "Aprobación recibida. Desplegando la imagen: $IMAGE_IDENTIFIER"
+
         aws apprunner update-service \
           --service-arn ${{ secrets.APP_RUNNER_SERVICE_ARN_PRD }} \
           --source-configuration '{
             "ImageRepository": {
-              "ImageIdentifier": "${{ needs.build-and-deploy-stage.outputs.image_identifier_sha }}",
+              "ImageIdentifier": "'"$IMAGE_IDENTIFIER"'",
               "ImageRepositoryType": "ECR"
             }
           }'
