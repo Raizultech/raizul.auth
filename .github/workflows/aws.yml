@@ -13,7 +13,7 @@ jobs:
     environment:
       name: dev
     outputs:
-      image_sha: ${{ steps.build-image.outputs.image_sha_output }}
+      image_sha: ${{ steps.build-image.outputs.image_sha }}
     
     steps:
     - name: Checkout code
