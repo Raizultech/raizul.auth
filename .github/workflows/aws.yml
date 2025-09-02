@@ -42,6 +42,8 @@ jobs:
         
         docker push $FULL_IMAGE_NAME
         docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest
+
+        echo "image_sha_output=$FULL_IMAGE_NAME"
         
         echo "image_sha_output=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
 
