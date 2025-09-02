@@ -57,7 +57,7 @@ jobs:
 
     - name: Verify Job Output
       run: |
-        echo "Verificación: El output 'image_sha' se ha establecido como: ${{ steps.build-image.outputs.image_sha_output }}"
+        echo "Verificación: El output 'image_sha' se ha establecido como: ${{ steps.build-image.outputs.image_sha }}"
 
   # Job 2: Despliega a Producción
   deploy-prod:
