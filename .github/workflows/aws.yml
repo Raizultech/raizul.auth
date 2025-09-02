@@ -12,7 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: dev
-    # --- CAMBIO 1: Nombre del output simplificado ---
     outputs:
       image_sha: ${{ steps.build-image.outputs.image_sha_output }}
     
@@ -21,14 +20,13 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Configure AWS credentials
-      # ... (sin cambios aquí) ...
+      uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ vars.AWS_REGION }}
 
     - name: Login to Amazon ECR
-      # ... (sin cambios aquí) ...
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
@@ -45,11 +43,9 @@ jobs:
         docker push $FULL_IMAGE_NAME
         docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest
         
-        # --- CAMBIO 2: Usar un nombre de output de paso diferente para claridad ---
         echo "image_sha_output=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
 
     - name: Update App Runner (Stage) with new image
-      # ... (sin cambios aquí, sigue usando el output del paso) ...
       run: |
         aws apprunner update-service \
           --service-arn ${{ secrets.APP_RUNNER_SERVICE_ARN_STG }} \
@@ -60,7 +56,6 @@ jobs:
             }
           }'
 
-    # --- CAMBIO 3: Paso de verificación añadido ---
     - name: Verify Job Output
       run: |
         echo "Verificación: El output 'image_sha' se ha establecido como: ${{ steps.build-image.outputs.image_sha_output }}"
@@ -75,7 +70,7 @@ jobs:
 
     steps:
     - name: Configure AWS credentials
-      # ... (sin cambios aquí) ...
+      uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -83,7 +78,6 @@ jobs:
 
     - name: Update App Runner (Production) with new image
       run: |
-        # --- CAMBIO 4: Usar el nombre de output simplificado ---
         IMAGE_IDENTIFIER="${{ needs.build-and-deploy-stage.outputs.image_sha }}"
         echo "Aprobación recibida. Desplegando la imagen: $IMAGE_IDENTIFIER"
 
