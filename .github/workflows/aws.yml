@@ -4,21 +4,14 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
-    inputs:
-      update_prod:
-        description: '¿Actualizar imagen en producción? (true/false)'
-        required: false
-        default: 'false'
-        type: boolean
 
 jobs:
-  build-and-deploy:
+  # Job 1: Construye, sube la imagen y despliega automáticamente a Stage
+  build-and-deploy-stage:
     name: Build, Push & Deploy to Stage
     runs-on: ubuntu-latest
-    
     environment:
-      name: dev
-      
+      name: dev # Asocia este job al entorno de desarrollo
     outputs:
       image_identifier_sha: ${{ steps.build-image.outputs.image_sha }}
     
@@ -37,12 +30,11 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
-    # --- PASO 2: DARLE UN ID A ESTE STEP Y CREAR UN OUTPUT ---
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
       run: |
         ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7) # Usamos SHA corto para legibilidad
+        IMAGE_TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7)
         
         docker build -t $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA .
         docker build -t $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest .
@@ -50,7 +42,6 @@ jobs:
         docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA
         docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest
         
-        # Guardamos el identificador completo de la imagen como un output del step
         echo "image_sha=$ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA" >> $GITHUB_OUTPUT
 
     - name: Update App Runner (Stage) with new image
@@ -65,31 +56,18 @@ jobs:
             }
           }'
 
-  notify-build:
-    name: Build & Stage Deploy Results
-    runs-on: ubuntu-latest
-    needs: [build-and-deploy]
-    if: always()
-    steps:
-    - name: Notification
-      run: |
-        if [[ "${{ needs.build-and-deploy.result }}" == "success" ]]; then
-          echo "🎉 Build y despliegue a Stage completado con éxito!"
-        else
-          echo "❌ Falló la construcción o el despliegue a Stage."
-          exit 1
-        fi
-
-  update-prod:
+  # Job 2: Despliega a Producción, pero ESPERA APROBACIÓN
+  deploy-prod:
     name: Deploy to Production
-    
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.update_prod == 'true' }}
     runs-on: ubuntu-latest
-    
+    needs: [build-and-deploy-stage] # Depende de que el job de Stage termine
+
+    # --- AQUÍ ESTÁ LA MAGIA ---
+    # Al apuntar a este entorno, el workflow se pausará
+    # hasta que un revisor autorizado lo apruebe.
     environment:
-      name: prd
-      
-    needs: [build-and-deploy]
+      name: production 
+
     steps:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
@@ -100,30 +78,31 @@ jobs:
 
     - name: Update App Runner (Production) with new image
       run: |
-        echo "Actualizando App Runner Producción..."
-        # --- PASO 3: USAR EL OUTPUT DEL JOB ANTERIOR ---
+        echo "Aprobación recibida. Actualizando App Runner Producción..."
         aws apprunner update-service \
           --service-arn ${{ secrets.APP_RUNNER_SERVICE_ARN_PRD }} \
           --source-configuration '{
             "ImageRepository": {
-              "ImageIdentifier": "${{ needs.build-and-deploy.outputs.image_identifier_sha }}",
+              "ImageIdentifier": "${{ needs.build-and-deploy-stage.outputs.image_identifier_sha }}",
               "ImageRepositoryType": "ECR"
             }
           }'
           
-  notify-prod:
-    name: Production Deploy Results
+  # Job 3: Notificación final
+  notify-final:
+    name: Final Deploy Results
     runs-on: ubuntu-latest
-    needs: [update-prod]
-    if: always() # Se ejecuta incluso si el job de despliegue no se activó (dará 'skipped')
+    needs: [build-and-deploy-stage, deploy-prod]
+    if: always()
     steps:
     - name: Notification
       run: |
-        if [[ "${{ needs.update-prod.result }}" == "success" ]]; then
-          echo "🎉 Despliegue a Producción completado con éxito!"
-        elif [[ "${{ needs.update-prod.result }}" == "skipped" ]]; then
-          echo "➡️ Despliegue a Producción omitido en esta ejecución."
+        if [[ "${{ needs.build-and-deploy-stage.result }}" == "success" && "${{ needs.deploy-prod.result }}" == "success" ]]; then
+          echo "🎉 Despliegue completado con éxito en Stage y Producción!"
+        elif [[ "${{ needs.build-and-deploy-stage.result }}" != "success" ]]; then
+          echo "❌ Falló la construcción o el despliegue a Stage."
+          exit 1
         else
-          echo "❌ Falló el despliegue a Producción."
+          echo "❌ Falló el despliegue a Producción después de la aprobación."
           exit 1
         fi
