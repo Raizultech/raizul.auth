@@ -75,7 +75,9 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ vars.AWS_REGION }}
-
+    - name: Debug Output Value
+      run: |
+        echo "El valor recibido es: ${{ needs.build-and-deploy-stage.outputs.image_identifier_sha }}"
     - name: Update App Runner (Production) with new image
       run: |
         echo "Aprobación recibida. Actualizando App Runner Producción..."
