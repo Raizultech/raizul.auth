@@ -34,18 +34,16 @@ jobs:
       id: build-image
       run: |
         ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-        FULL_IMAGE_NAME="$ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA"
+        IMAGE_TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7) # Usamos SHA corto para legibilidad
         
-        docker build -t $FULL_IMAGE_NAME .
-        docker tag $FULL_IMAGE_NAME $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest
+        docker build -t $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA .
+        docker build -t $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest .
         
-        docker push $FULL_IMAGE_NAME
+        docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA
         docker push $ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:latest
-
-        echo "image_sha_output=$FULL_IMAGE_NAME"
         
-        echo "image_sha_output=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
+        # Guardamos el identificador completo de la imagen como un output del step
+        echo "image_sha=$ECR_REGISTRY/${{ vars.ECR_REPOSITORY }}:$IMAGE_TAG_SHA" >> $GITHUB_OUTPUT
 
     - name: Update App Runner (Stage) with new image
       run: |
@@ -80,14 +78,11 @@ jobs:
 
     - name: Update App Runner (Production) with new image
       run: |
-        IMAGE_IDENTIFIER="${{ needs.build-and-deploy-stage.outputs.image_sha }}"
-        echo "Aprobación recibida. Desplegando la imagen: $IMAGE_IDENTIFIER"
-
         aws apprunner update-service \
           --service-arn ${{ secrets.APP_RUNNER_SERVICE_ARN_PRD }} \
           --source-configuration '{
             "ImageRepository": {
-              "ImageIdentifier": "'"$IMAGE_IDENTIFIER"'",
+              "ImageIdentifier": "${{ needs.build-and-deploy-stage.outputs.image_sha }}",
               "ImageRepositoryType": "ECR"
             }
           }'
